@@ -1,9 +1,3 @@
-# Create a new directory
-mkdir sql-version-checker
-cd sql-version-checker
-
-# Create the script file
-cat > sql_version_check.py << 'EOF'
 #!/usr/bin/env python3
 import socket
 import sys
@@ -19,43 +13,43 @@ prelogin_packet = bytes([
 
 def get_sql_version(host, port=1433):
     try:
+        print(f"[*] Checking {host}:{port}...")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(5)
+        sock.settimeout(10)  # Increased to 10 seconds
         sock.connect((host, port))
+        print(f"[+] Connected to {host}")
+        
         sock.send(prelogin_packet)
-        response = sock.recv(1024)
+        print(f"[+] Sent pre-login packet, waiting for response...")
+        
+        response = sock.recv(4096)  # Increased buffer size
+        print(f"[+] Received {len(response)} bytes")
         sock.close()
+        
+        # Debug: Show raw response
+        print(f"[DEBUG] Raw response (first 50 bytes): {response[:50].hex()}")
+        
         if len(response) >= 48:
             version_bytes = response[44:48]
             major = version_bytes[0]
             minor = version_bytes[1]
             build = (version_bytes[2] << 8) | version_bytes[3]
+            
+            print(f"[+] {host} - Version: {major}.{minor}.{build}")
+            
             if major == 15:
-                version_str = f"SQL Server 2019 {major}.{minor}.{build}"
+                print(f"[!] SQL Server 2019 - Check build {build}")
             elif major == 13:
-                version_str = f"SQL Server 2016 {major}.{minor}.{build}"
-            else:
-                version_str = f"SQL Server {major}.{minor}.{build}"
-            print(f"{host}:{port} - {version_str}")
-            return version_str
+                print(f"[!] SQL Server 2016 - Check build {build}")
+        else:
+            print(f"[-] {host} - Response too short ({len(response)} bytes)")
+            
+    except socket.timeout:
+        print(f"[-] {host} - Timeout after 10 seconds")
     except Exception as e:
-        print(f"{host}:{port} - Error: {e}")
-    return None
+        print(f"[-] {host} - Error: {e}")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        for ip in sys.argv[1:]:
-            get_sql_version(ip)
-    else:
-        targets = ["10.65.54.22", "10.65.54.33", "10.65.54.34", "10.65.54.24", "10.65.54.20"]
-        for target in targets:
-            get_sql_version(target)
-EOF
-
-# Initialize git and push to GitHub
-git init
-git add sql_version_check.py
-git commit -m "Add SQL Server version checker"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/sql-version-checker.git
-git push -u origin main
+    targets = ["10.65.54.22", "10.65.54.33", "10.65.54.34", "10.65.54.24", "10.65.54.20"]
+    for target in targets:
+        get_sql_version(target)
